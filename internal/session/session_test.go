@@ -223,3 +223,57 @@ type badStartConn struct{ fakeConn }
 func (b *badStartConn) ReadStart(ctx context.Context) (RecognitionConfig, error) {
 	return RecognitionConfig{Encoding: "BOGUS", SampleRateHz: 0}, nil
 }
+
+// Production scaling: a drained session closes with going-away (so the client
+// reconnects) and releases resources.
+func TestDrainGoingAway(t *testing.T) {
+	conn := &fakeConn{id: "s", blockAfterFrames: true} // long-lived, no natural end
+	s := newSession(conn, &fakeInference{behavior: "stall"}, Options{WriteTimeout: time.Second})
+
+	done := make(chan string, 1)
+	go func() { done <- s.Run(context.Background()) }()
+
+	// Let the session reach streaming, then drain it.
+	time.Sleep(50 * time.Millisecond)
+	s.Drain()
+
+	select {
+	case outcome := <-done:
+		if outcome != CodeGoingAway {
+			t.Fatalf("outcome = %q, want %q", outcome, CodeGoingAway)
+		}
+		if got := conn.closeErr(); got == nil || got.Code != CodeGoingAway {
+			t.Fatalf("close error = %v, want going_away", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("drained session did not finish")
+	}
+}
+
+// Manager.Drain closes all active sessions and reports zero remaining.
+func TestManagerDrain(t *testing.T) {
+	mgr := NewManager(&fakeInference{behavior: "stall"}, Options{WriteTimeout: time.Second})
+
+	const n = 5
+	for i := 0; i < n; i++ {
+		conn := &fakeConn{id: string(rune('a' + i)), blockAfterFrames: true}
+		go mgr.Handle(context.Background(), conn)
+	}
+	// Wait for all sessions to register.
+	deadline := time.Now().Add(2 * time.Second)
+	for mgr.Count() < n {
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d/%d sessions registered", mgr.Count(), n)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if remaining := mgr.Drain(ctx); remaining != 0 {
+		t.Fatalf("Drain left %d sessions active", remaining)
+	}
+	if mgr.Count() != 0 {
+		t.Fatalf("Count = %d after drain, want 0", mgr.Count())
+	}
+}

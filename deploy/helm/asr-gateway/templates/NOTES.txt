@@ -32,7 +32,13 @@ Then check health:
 
 {{- if .Values.autoscaling.enabled }}
 
-Autoscaling is ON: {{ .Values.autoscaling.minReplicas }}–{{ .Values.autoscaling.maxReplicas }} replicas (target CPU {{ .Values.autoscaling.targetCPUUtilizationPercentage }}%).
+Autoscaling is ON ({{ .Values.autoscaling.mode }}): {{ .Values.autoscaling.minReplicas }}–{{ .Values.autoscaling.maxReplicas }} replicas.
+{{- if eq .Values.autoscaling.mode "keda" }}
+  Scaling on `{{ .Values.autoscaling.keda.query }}` > {{ .Values.autoscaling.keda.threshold }} via Prometheus at
+  {{ .Values.autoscaling.keda.prometheusAddress }} (requires KEDA installed in the cluster).
+{{- else }}
+  Scaling on CPU {{ .Values.autoscaling.targetCPUUtilizationPercentage }}% (weak signal for a WebSocket server — prefer mode: keda).
+{{- end }}
 {{- else }}
 
 Running {{ .Values.replicaCount }} replica(s). Note: WebSocket sessions are sticky to a

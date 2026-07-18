@@ -20,6 +20,7 @@ func main() {
 	url := flag.String("url", "ws://localhost:8080/v1/stream", "gateway WebSocket URL")
 	file := flag.String("file", "", "path to a file to stream as audio")
 	chunk := flag.Int("chunk", 1024, "chunk size in bytes")
+	hold := flag.Bool("hold", false, "keep the session open (skip stop) and report the server close code")
 	flag.Parse()
 
 	if *file == "" {
@@ -59,14 +60,19 @@ func main() {
 			log.Fatalf("write audio: %v", err)
 		}
 	}
-	if err := c.Write(ctx, websocket.MessageText, []byte(`{"type":"stop"}`)); err != nil {
-		log.Fatalf("write stop: %v", err)
+	if !*hold {
+		if err := c.Write(ctx, websocket.MessageText, []byte(`{"type":"stop"}`)); err != nil {
+			log.Fatalf("write stop: %v", err)
+		}
+	} else {
+		fmt.Println("[holding session open — waiting for server events]")
 	}
 
 	for {
 		typ, msg, err := c.Read(ctx)
 		if err != nil {
-			// Normal closure ends the loop.
+			// Report how the server closed the connection (e.g. 1001 going-away on drain).
+			fmt.Printf("[closed] status=%d err=%v\n", websocket.CloseStatus(err), err)
 			return
 		}
 		if typ != websocket.MessageText {

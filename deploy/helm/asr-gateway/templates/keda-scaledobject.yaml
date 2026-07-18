@@ -1,0 +1,29 @@
+{{- if and .Values.autoscaling.enabled (eq .Values.autoscaling.mode "keda") }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "asr-gateway.fullname" . }}
+  labels:
+    {{- include "asr-gateway.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    name: {{ include "asr-gateway.fullname" . }}
+  minReplicaCount: {{ .Values.autoscaling.minReplicas }}
+  maxReplicaCount: {{ .Values.autoscaling.maxReplicas }}
+  pollingInterval: {{ .Values.autoscaling.keda.pollingInterval }}
+  cooldownPeriod: {{ .Values.autoscaling.keda.cooldownPeriod }}
+  advanced:
+    horizontalPodAutoscalerConfig:
+      {{- with .Values.autoscaling.keda.behavior }}
+      behavior:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  triggers:
+    # Scale on average active WebSocket sessions per pod (the binding resource
+    # for a connection-bound, I/O-bound gateway) — not CPU.
+    - type: prometheus
+      metadata:
+        serverAddress: {{ .Values.autoscaling.keda.prometheusAddress | quote }}
+        query: {{ .Values.autoscaling.keda.query | quote }}
+        threshold: {{ .Values.autoscaling.keda.threshold | quote }}
+{{- end }}

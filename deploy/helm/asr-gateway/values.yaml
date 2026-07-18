@@ -27,6 +27,13 @@ config:
   maxFrameBytes: "65536"
   audioBuffer: "32"
   transcriptBuffer: "32"
+  # On SIGTERM the app first fails readiness and waits drainDelay so that
+  # Service endpoint removal propagates to load balancers before it stops
+  # accepting connections (distroless has no shell, so this replaces a preStop
+  # sleep). Then it drains active sessions for up to shutdownTimeout.
+  # drainDelay + shutdownTimeout MUST be < terminationGracePeriodSeconds.
+  drainDelay: "5s"
+  shutdownTimeout: "45s"
 
 # Extra environment variables (list of {name,value} or valueFrom entries).
 extraEnv: []
@@ -51,14 +58,67 @@ resources:
 
 autoscaling:
   enabled: false
+  # mode selects the autoscaler:
+  #   keda -> scale on active WebSocket sessions via Prometheus (RECOMMENDED)
+  #   hpa  -> native HPA on CPU/memory (a weak signal for a connection-bound,
+  #           I/O-bound WebSocket server; use only if KEDA is unavailable)
+  mode: keda
   minReplicas: 2
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 70
-  # targetMemoryUtilizationPercentage: 80
+  maxReplicas: 20
 
-# WebSocket sessions are long-lived; give in-flight streams time to drain on
-# rollout/scale-down. Should exceed the gateway's own 10s shutdown budget.
-terminationGracePeriodSeconds: 60
+  # --- KEDA (mode: keda) ---
+  keda:
+    # Prometheus that scrapes the gateway's /metrics.
+    prometheusAddress: http://prometheus-operated.monitoring.svc:9090
+    # Scale on average active sessions per pod. Set threshold BELOW real per-pod
+    # capacity so there is headroom (new pods only receive NEW connections;
+    # existing sessions never rebalance onto them).
+    query: avg(asr_active_sessions)
+    threshold: "80"
+    pollingInterval: 15   # seconds between metric checks
+    cooldownPeriod: 300   # seconds to wait after load drops before scaling down
+    # HPA scaling behavior KEDA applies to the generated HPA (see notes below).
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 120
+      scaleUp:
+        stabilizationWindowSeconds: 0
+        policies:
+          - type: Percent
+            value: 100
+            periodSeconds: 30
+          - type: Pods
+            value: 4
+            periodSeconds: 30
+        selectPolicy: Max
+
+  # --- Native HPA (mode: hpa) ---
+  targetCPUUtilizationPercentage: 60
+  # targetMemoryUtilizationPercentage: 80
+  behavior:
+    scaleDown:
+      # Conservative: WebSocket pods hold live sessions; don't evict on brief dips.
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+      selectPolicy: Max
+
+# WebSocket sessions are long-lived. On rollout/scale-down the pod fails
+# readiness, drains sessions (going-away -> client reconnects), then exits.
+# This MUST exceed config.drainDelay + config.shutdownTimeout.
+terminationGracePeriodSeconds: 75
 
 podDisruptionBudget:
   enabled: false
@@ -76,12 +136,12 @@ livenessProbe:
 
 readinessProbe:
   httpGet:
-    path: /healthz
+    path: /readyz
     port: http
   initialDelaySeconds: 3
   periodSeconds: 5
   timeoutSeconds: 2
-  failureThreshold: 3
+  failureThreshold: 2
 
 # Pod- and container-level security contexts (distroless nonroot image = uid 65532).
 podSecurityContext:
@@ -106,6 +166,9 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Send new connections to the least-loaded pod so freshly scaled-up pods
+    # actually absorb load (round-robin ignores existing connection counts).
+    nginx.ingress.kubernetes.io/load-balance: "ewma"
   hosts:
     - host: asr.example.com
       paths:

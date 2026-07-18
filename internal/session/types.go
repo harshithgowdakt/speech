@@ -85,6 +85,7 @@ const (
 	CodeTimeout          = "timeout"
 	CodeSlowConsumer     = "slow_consumer"
 	CodeClientDisconnect = "client_disconnect"
+	CodeGoingAway        = "going_away"
 	CodeInternal         = "internal"
 )
 

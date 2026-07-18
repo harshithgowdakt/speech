@@ -18,6 +18,8 @@ type Config struct {
 	TranscriptBuffer int           // ASR_TRANSCRIPT_BUFFER: down-pump bound (reserved)
 	MaxFrameBytes    int64         // ASR_MAX_FRAME_BYTES: max audio frame size
 	WriteTimeout     time.Duration // ASR_WRITE_TIMEOUT: slow-consumer termination threshold
+	DrainDelay       time.Duration // ASR_DRAIN_DELAY: wait after SIGTERM before draining (endpoint propagation)
+	ShutdownTimeout  time.Duration // ASR_SHUTDOWN_TIMEOUT: max time to drain sessions on SIGTERM
 }
 
 // Load reads configuration from the environment, applying defaults.
@@ -30,6 +32,8 @@ func Load() (Config, error) {
 		TranscriptBuffer: getInt("ASR_TRANSCRIPT_BUFFER", 32),
 		MaxFrameBytes:    getInt64("ASR_MAX_FRAME_BYTES", 65536),
 		WriteTimeout:     getDuration("ASR_WRITE_TIMEOUT", 5*time.Second),
+		DrainDelay:       getDuration("ASR_DRAIN_DELAY", 5*time.Second),
+		ShutdownTimeout:  getDuration("ASR_SHUTDOWN_TIMEOUT", 45*time.Second),
 	}
 	if err := c.validate(); err != nil {
 		return Config{}, err
@@ -49,6 +53,9 @@ func (c Config) validate() error {
 	}
 	if c.WriteTimeout <= 0 {
 		return fmt.Errorf("ASR_WRITE_TIMEOUT must be > 0, got %s", c.WriteTimeout)
+	}
+	if c.ShutdownTimeout <= 0 {
+		return fmt.Errorf("ASR_SHUTDOWN_TIMEOUT must be > 0, got %s", c.ShutdownTimeout)
 	}
 	return nil
 }

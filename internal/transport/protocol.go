@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/coder/websocket"
 	"github.com/harshithgowdakt/speech/internal/session"
@@ -50,6 +51,9 @@ type errorMsg struct {
 type wsConn struct {
 	c  *websocket.Conn
 	id string
+
+	writeMu   sync.Mutex // serializes all writes (coder/websocket allows one writer)
+	closeOnce sync.Once
 }
 
 func (w *wsConn) ID() string { return w.id }
@@ -120,19 +124,30 @@ func (w *wsConn) WriteTranscript(ctx context.Context, t session.Transcript) erro
 	if err != nil {
 		return err
 	}
+	w.writeMu.Lock()
+	defer w.writeMu.Unlock()
 	return w.c.Write(ctx, websocket.MessageText, b)
 }
 
 // Close sends a terminal error (if any) and closes with the mapped close code.
+// It is idempotent: only the first call sends frames, so a graceful drain-close
+// followed by the lifecycle teardown close does not double-write.
 func (w *wsConn) Close(ctx context.Context, serr *session.SessionError) error {
-	if serr == nil {
-		return w.c.Close(websocket.StatusNormalClosure, "")
-	}
-	// Best-effort error frame before closing; the client may already be gone.
-	if b, err := json.Marshal(errorMsg{Type: "error", Code: serr.Code, Message: serr.Message}); err == nil {
-		_ = w.c.Write(ctx, websocket.MessageText, b)
-	}
-	return w.c.Close(closeCodeFor(serr.Code), truncateReason(serr.Message))
+	var ret error
+	w.closeOnce.Do(func() {
+		w.writeMu.Lock()
+		defer w.writeMu.Unlock()
+		if serr == nil {
+			ret = w.c.Close(websocket.StatusNormalClosure, "")
+			return
+		}
+		// Best-effort error frame before closing; the client may already be gone.
+		if b, err := json.Marshal(errorMsg{Type: "error", Code: serr.Code, Message: serr.Message}); err == nil {
+			_ = w.c.Write(ctx, websocket.MessageText, b)
+		}
+		ret = w.c.Close(closeCodeFor(serr.Code), truncateReason(serr.Message))
+	})
+	return ret
 }
 
 func closeCodeFor(code string) websocket.StatusCode {
@@ -141,7 +156,7 @@ func closeCodeFor(code string) websocket.StatusCode {
 		return websocket.StatusProtocolError // 1002
 	case session.CodeInference, session.CodeInternal:
 		return websocket.StatusInternalError // 1011
-	case session.CodeTimeout:
+	case session.CodeTimeout, session.CodeGoingAway:
 		return websocket.StatusGoingAway // 1001
 	case session.CodeSlowConsumer:
 		return websocket.StatusPolicyViolation // 1008

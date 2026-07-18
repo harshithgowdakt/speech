@@ -56,6 +56,10 @@ spec:
               value: {{ .Values.config.audioBuffer | quote }}
             - name: ASR_TRANSCRIPT_BUFFER
               value: {{ .Values.config.transcriptBuffer | quote }}
+            - name: ASR_SHUTDOWN_TIMEOUT
+              value: {{ .Values.config.shutdownTimeout | quote }}
+            - name: ASR_DRAIN_DELAY
+              value: {{ .Values.config.drainDelay | quote }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

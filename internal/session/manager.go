@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/harshithgowdakt/speech/internal/metrics"
 )
@@ -49,6 +50,37 @@ func (m *Manager) Count() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.sessions)
+}
+
+// Drain signals every active session to close gracefully (going-away) and waits
+// until they have all finished or ctx expires. It returns the number of sessions
+// still active when it returned (0 on a clean drain). New connections should be
+// stopped before calling Drain (e.g. the HTTP listener already shut down).
+func (m *Manager) Drain(ctx context.Context) int {
+	m.mu.RLock()
+	snapshot := make([]*Session, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		snapshot = append(snapshot, s)
+	}
+	m.mu.RUnlock()
+
+	// Drain concurrently so one slow/unreachable client can't delay the others.
+	for _, s := range snapshot {
+		go s.Drain()
+	}
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if n := m.Count(); n == 0 {
+			return 0
+		}
+		select {
+		case <-ctx.Done():
+			return m.Count()
+		case <-ticker.C:
+		}
+	}
 }
 
 func (m *Manager) register(id string, s *Session) {

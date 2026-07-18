@@ -87,6 +87,41 @@ helm upgrade --install asr deploy/helm/asr-gateway \
 
 Run chart tests after install: `helm test asr -n asr`.
 
+## Autoscaling & graceful shutdown
+
+WebSocket connections are long-lived and stateful, which breaks naive
+CPU-based HPA. This service is built for it:
+
+**Scale on connections, not CPU.** The gateway is I/O-bound, so the binding
+resource is *concurrent sessions*, not CPU. The chart's default autoscaler is
+**KEDA** scaling on the `asr_active_sessions` metric via Prometheus
+(`autoscaling.mode: keda`). Because existing sessions never rebalance onto
+newly-added pods, set the per-pod threshold **below** real capacity for
+headroom. A native-HPA-on-CPU fallback (`mode: hpa`) is included but is a weaker
+signal. Both use a conservative scale-down (`stabilizationWindowSeconds: 300`)
+and aggressive scale-up.
+
+**Graceful drain on scale-down / rollout.** Killing a pod drops its sessions,
+so shutdown is staged (all timings are configurable and enforced by the chart to
+fit within `terminationGracePeriodSeconds`):
+
+1. **SIGTERM → fail readiness** (`/readyz` → 503) so the load balancer stops
+   routing new connections. Liveness (`/healthz`) stays green so K8s doesn't
+   kill-restart the draining pod.
+2. **Wait `ASR_DRAIN_DELAY`** for Service endpoint removal to propagate (this
+   replaces a preStop `sleep`, which the distroless image can't run).
+3. **Stop the listener, then drain**: each active session is closed with a
+   WebSocket **1001 going-away + `going_away` message**, telling clients to
+   reconnect (they land on a surviving pod — sessions are non-resumable by
+   design). Bounded by `ASR_SHUTDOWN_TIMEOUT`.
+
+Clients therefore only ever need reconnect-with-backoff. Least-connections
+ingress balancing (`load-balance: ewma`) steers new connections to fresh pods.
+
+> The **inference server (GPU-bound) is the real capacity limit** — scale it
+> independently on GPU utilization/queue depth; it does not scale 1:1 with the
+> gateway.
+
 ## Configuration
 
 | Env var | Default | Meaning |
@@ -96,6 +131,8 @@ Run chart tests after install: `helm test asr -n asr`.
 | `ASR_SESSION_TIMEOUT` | `30s` | Idle/stalled-stream timeout |
 | `ASR_MAX_FRAME_BYTES` | `65536` | Max audio frame size |
 | `ASR_WRITE_TIMEOUT` | `5s` | Slow-consumer termination threshold |
+| `ASR_DRAIN_DELAY` | `5s` | On SIGTERM, wait this long (after failing readiness) before draining, so endpoint removal propagates |
+| `ASR_SHUTDOWN_TIMEOUT` | `45s` | Max time to drain active sessions on SIGTERM |
 | `ASR_AUDIO_BUFFER` / `ASR_TRANSCRIPT_BUFFER` | `32` | Reserved buffer bounds |
 
 ## Observability

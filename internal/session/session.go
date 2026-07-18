@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -37,10 +38,39 @@ type Session struct {
 	cfg          RecognitionConfig
 	bytesIn      int64 // atomic
 	lastActivity int64 // atomic UnixNano
+
+	draining atomic.Bool
+	mu       sync.Mutex // guards cancel
+	cancel   context.CancelFunc
 }
 
 func newSession(conn ClientConn, inf InferenceClient, opts Options) *Session {
 	return &Session{conn: conn, inference: inf, opts: opts, state: StateOpening}
+}
+
+// Drain closes the session gracefully with a "going away" signal so the client
+// reconnects (landing on another pod). It sends the close frame BEFORE
+// cancelling the session, because cancelling an in-flight WebSocket read tears
+// the connection down abruptly and would prevent a clean 1001 close from being
+// delivered. Safe to call concurrently and before Run has fully started; runs
+// at most once.
+func (s *Session) Drain() {
+	if !s.draining.CompareAndSwap(false, true) {
+		return
+	}
+	s.mu.Lock()
+	cancel := s.cancel
+	s.mu.Unlock()
+
+	// 1. Deliver the going-away close to the client (idempotent on the conn).
+	closeCtx, cc := context.WithTimeout(context.Background(), s.opts.WriteTimeout)
+	_ = s.conn.Close(closeCtx, newErr(CodeGoingAway, "server draining; please reconnect"))
+	cc()
+
+	// 2. Now tear down the pumps and the gRPC stream.
+	if cancel != nil {
+		cancel()
+	}
 }
 
 // Run drives the full session lifecycle and returns the outcome label for
@@ -51,6 +81,14 @@ func (s *Session) Run(parentCtx context.Context) string {
 
 	sctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
+	s.mu.Lock()
+	s.cancel = cancel
+	s.mu.Unlock()
+
+	// A drain may have arrived before cancel was published; honor it immediately.
+	if s.draining.Load() {
+		cancel()
+	}
 
 	// Opening: read and validate the start config.
 	cfg, err := s.conn.ReadStart(sctx)
@@ -191,6 +229,12 @@ func (s *Session) BytesIn() int64 { return atomic.LoadInt64(&s.bytesIn) }
 // the outcome label. serr == nil means a clean completion.
 func (s *Session) finish(parentCtx context.Context, serr *SessionError) string {
 	log := metrics.Logger(parentCtx)
+
+	// If the session was drained for shutdown, the client is told to reconnect
+	// regardless of any incidental teardown error the pumps surfaced.
+	if s.draining.Load() {
+		serr = newErr(CodeGoingAway, "server draining; please reconnect")
+	}
 
 	// Use a detached context: parentCtx may already be cancelled at teardown.
 	closeCtx, cancel := context.WithTimeout(context.Background(), s.opts.WriteTimeout)
