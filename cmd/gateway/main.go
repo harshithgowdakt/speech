@@ -35,7 +35,7 @@ func main() {
 	// Wire the down-pump's result-skip predicate to the inference adapter.
 	session.SkipResult = inference.IsEmptyResult
 
-	infClient, err := inference.Dial(cfg.InferenceAddr)
+	infClient, err := inference.Dial(cfg.InferenceAddr, cfg.InferencePoolSize)
 	if err != nil {
 		log.Error("inference dial error", "err", err)
 		os.Exit(1)
@@ -55,7 +55,10 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/v1/stream", transport.Handler(
-		transport.Options{MaxFrameBytes: cfg.MaxFrameBytes},
+		transport.Options{
+			MaxFrameBytes:  cfg.MaxFrameBytes,
+			MaxConnections: cfg.MaxConnections,
+		},
 		mgr.Handle,
 	))
 	mux.Handle("/metrics", promhttp.Handler())

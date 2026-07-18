@@ -46,6 +46,10 @@ spec:
               value: {{ .Values.config.listenAddr | quote }}
             - name: ASR_INFERENCE_ADDR
               value: {{ .Values.config.inferenceAddr | quote }}
+            - name: ASR_INFERENCE_POOL_SIZE
+              value: {{ .Values.config.inferencePoolSize | quote }}
+            - name: ASR_MAX_CONNECTIONS
+              value: {{ .Values.config.maxConnections | quote }}
             - name: ASR_SESSION_TIMEOUT
               value: {{ .Values.config.sessionTimeout | quote }}
             - name: ASR_WRITE_TIMEOUT

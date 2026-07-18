@@ -44,6 +44,13 @@ var (
 		Name: "asr_sessions_total",
 		Help: "Total sessions that have ended, labeled by outcome.",
 	}, []string{"outcome"})
+
+	// ConnectionsRejected counts connections refused because the instance was at
+	// its configured concurrency cap.
+	ConnectionsRejected = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "asr_connections_rejected_total",
+		Help: "Total connections rejected due to the max-connections limit.",
+	})
 )
 
 type ctxKey struct{}

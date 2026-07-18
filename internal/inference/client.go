@@ -5,37 +5,81 @@ package inference
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
+	"time"
 
 	pb "github.com/harshithgowdakt/speech/internal/genproto/asr"
 	"github.com/harshithgowdakt/speech/internal/metrics"
 	"github.com/harshithgowdakt/speech/internal/session"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 )
 
-// Client is a gRPC-backed session.InferenceClient.
+// Client is a gRPC-backed session.InferenceClient. It pools several client
+// connections and round-robins streams across them: a single HTTP/2 connection
+// caps concurrent streams (SETTINGS_MAX_CONCURRENT_STREAMS) and becomes a
+// throughput chokepoint, so pooling is what lets one gateway instance carry
+// thousands of concurrent sessions.
 type Client struct {
-	cc  *grpc.ClientConn
-	api pb.ASRServiceClient
+	conns []*grpc.ClientConn
+	apis  []pb.ASRServiceClient
+	next  atomic.Uint64
 }
 
-// Dial creates a Client connected to addr (insecure transport for v1).
-func Dial(addr string) (*Client, error) {
-	cc, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, fmt.Errorf("dial inference server %q: %w", addr, err)
+// Dial creates a Client with a pool of poolSize connections to addr (insecure
+// transport for v1). poolSize < 1 is treated as 1.
+func Dial(addr string, poolSize int) (*Client, error) {
+	if poolSize < 1 {
+		poolSize = 1
 	}
-	return New(cc), nil
+	c := &Client{}
+	opts := []grpc.DialOption{
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    30 * time.Second,
+			Timeout: 10 * time.Second,
+		}),
+	}
+	for i := 0; i < poolSize; i++ {
+		cc, err := grpc.NewClient(addr, opts...)
+		if err != nil {
+			_ = c.Close()
+			return nil, fmt.Errorf("dial inference server %q: %w", addr, err)
+		}
+		c.conns = append(c.conns, cc)
+		c.apis = append(c.apis, pb.NewASRServiceClient(cc))
+	}
+	return c, nil
 }
 
-// New wraps an existing gRPC connection (used by tests over bufconn).
-func New(cc *grpc.ClientConn) *Client {
-	return &Client{cc: cc, api: pb.NewASRServiceClient(cc)}
+// New wraps existing gRPC connections (used by tests, e.g. over bufconn).
+func New(ccs ...*grpc.ClientConn) *Client {
+	c := &Client{}
+	for _, cc := range ccs {
+		c.conns = append(c.conns, cc)
+		c.apis = append(c.apis, pb.NewASRServiceClient(cc))
+	}
+	return c
 }
 
-// Close releases the underlying connection.
-func (c *Client) Close() error { return c.cc.Close() }
+// Close releases all pooled connections.
+func (c *Client) Close() error {
+	var firstErr error
+	for _, cc := range c.conns {
+		if err := cc.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
+}
+
+// pick returns the next pooled client in round-robin order.
+func (c *Client) pick() pb.ASRServiceClient {
+	i := c.next.Add(1) - 1
+	return c.apis[int(i%uint64(len(c.apis)))]
+}
 
 // StartStream opens a bidirectional stream and sends the recognition config first.
 func (c *Client) StartStream(ctx context.Context, cfg session.RecognitionConfig) (session.InferenceStream, error) {
@@ -43,7 +87,7 @@ func (c *Client) StartStream(ctx context.Context, cfg session.RecognitionConfig)
 	if id := metrics.CorrelationID(ctx); id != "" {
 		ctx = metadata.AppendToOutgoingContext(ctx, "x-correlation-id", id)
 	}
-	stream, err := c.api.StreamingRecognize(ctx)
+	stream, err := c.pick().StreamingRecognize(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("open StreamingRecognize: %w", err)
 	}

@@ -22,6 +22,14 @@ config:
   listenAddr: ":8080"
   # gRPC address of the ASR inference server. Point this at your model service.
   inferenceAddr: "asr-inference:50051"
+  # Number of pooled gRPC connections to the inference server. A single HTTP/2
+  # connection caps concurrent streams, so pooling is required to carry thousands
+  # of concurrent sessions per pod. Size it roughly to
+  # (peak sessions per pod) / (server MaxConcurrentStreams).
+  inferencePoolSize: "8"
+  # Max concurrent WebSocket connections per pod (0 = unlimited). Over the cap,
+  # upgrades are refused with HTTP 503 so overload sheds cleanly instead of OOMing.
+  maxConnections: "2000"
   sessionTimeout: "30s"
   writeTimeout: "5s"
   maxFrameBytes: "65536"

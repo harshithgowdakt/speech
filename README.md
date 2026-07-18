@@ -92,6 +92,13 @@ Run chart tests after install: `helm test asr -n asr`.
 WebSocket connections are long-lived and stateful, which breaks naive
 CPU-based HPA. This service is built for it:
 
+**Thousands of connections per pod.** Two things make this real rather than
+theoretical: (1) a **pool of gRPC connections** (`ASR_INFERENCE_POOL_SIZE`) to
+the inference server — a single HTTP/2 connection caps concurrent streams, so
+sessions are round-robined across the pool; and (2) a **per-pod connection cap**
+(`ASR_MAX_CONNECTIONS`) that sheds overload as HTTP 503 instead of exhausting
+memory/FDs. Raise the container file-descriptor limit (`ulimit -n`) accordingly.
+
 **Scale on connections, not CPU.** The gateway is I/O-bound, so the binding
 resource is *concurrent sessions*, not CPU. The chart's default autoscaler is
 **KEDA** scaling on the `asr_active_sessions` metric via Prometheus
@@ -128,6 +135,8 @@ ingress balancing (`load-balance: ewma`) steers new connections to fresh pods.
 |---------|---------|---------|
 | `ASR_LISTEN_ADDR` | `:8080` | WebSocket + `/metrics` listen address |
 | `ASR_INFERENCE_ADDR` | `localhost:50051` | gRPC inference server target |
+| `ASR_INFERENCE_POOL_SIZE` | `8` | Pooled gRPC connections to the inference server (round-robined per session) |
+| `ASR_MAX_CONNECTIONS` | `2000` | Max concurrent WebSocket connections per pod (0 = unlimited); over the cap, upgrades get HTTP 503 |
 | `ASR_SESSION_TIMEOUT` | `30s` | Idle/stalled-stream timeout |
 | `ASR_MAX_FRAME_BYTES` | `65536` | Max audio frame size |
 | `ASR_WRITE_TIMEOUT` | `5s` | Slow-consumer termination threshold |

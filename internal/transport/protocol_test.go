@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -18,7 +19,12 @@ import (
 // to fn (running server-side), and returns a ws:// URL plus cleanup.
 func serve(t *testing.T, fn ConnHandler) (string, func()) {
 	t.Helper()
-	srv := httptest.NewServer(Handler(Options{MaxFrameBytes: 1 << 16}, fn))
+	return serveOpts(t, Options{MaxFrameBytes: 1 << 16}, fn)
+}
+
+func serveOpts(t *testing.T, opts Options, fn ConnHandler) (string, func()) {
+	t.Helper()
+	srv := httptest.NewServer(Handler(opts, fn))
 	url := "ws" + strings.TrimPrefix(srv.URL, "http")
 	return url, srv.Close
 }
@@ -147,5 +153,36 @@ func TestProtocolAudioBeforeStart(t *testing.T) {
 	var se *session.SessionError
 	if !errors.As(err, &se) || se.Code != session.CodeProtocol {
 		t.Fatalf("err = %v, want protocol_violation SessionError", err)
+	}
+}
+
+// MaxConnections caps concurrency: once full, further upgrades get HTTP 503.
+func TestMaxConnections(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	release := make(chan struct{})
+	accepted := make(chan struct{}, 1)
+	url, closeSrv := serveOpts(t, Options{MaxFrameBytes: 1 << 16, MaxConnections: 1},
+		func(ctx context.Context, conn session.ClientConn) {
+			accepted <- struct{}{}
+			<-release // hold the single slot until the test releases it
+			_ = conn.Close(ctx, nil)
+		})
+	defer closeSrv()
+	defer close(release)
+
+	// First connection takes the only slot.
+	c1 := dial(t, ctx, url)
+	defer c1.Close(websocket.StatusNormalClosure, "")
+	<-accepted
+
+	// Second connection must be rejected with 503 before the upgrade.
+	_, resp, err := websocket.Dial(ctx, url, &websocket.DialOptions{Subprotocols: []string{"asr.v1"}})
+	if err == nil {
+		t.Fatal("expected second dial to be rejected")
+	}
+	if resp == nil || resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got resp=%v err=%v", resp, err)
 	}
 }
