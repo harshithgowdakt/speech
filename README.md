@@ -57,9 +57,33 @@ go run ./test/tools/wsclient -file /tmp/hello.txt
 #    [FINAL] hello world
 ```
 
+## Inference server
+
+The gateway needs an ASR inference server implementing `asr.v1`. A ready-to-run
+one (OpenAI Whisper via faster-whisper, GPU) lives in
+[`inference-server/`](inference-server) with its own
+[chart](deploy/helm/asr-inference) for AWS EKS GPU nodes. Any server implementing
+[`proto/asr.proto`](proto/asr.proto) works.
+
 ## Deploy to Kubernetes (Helm)
 
-A chart lives in [`deploy/helm/asr-gateway`](deploy/helm/asr-gateway). Build and push
+Full stack, in order (namespace `asr`):
+
+```bash
+# 1. KEDA operator (once per cluster) — for the gateway's connection-based autoscaling
+helm upgrade --install keda deploy/helm/keda -n keda --create-namespace
+
+# 2. Inference server (GPU node group required)
+helm upgrade --install asr-inference deploy/helm/asr-inference -n asr --create-namespace \
+  --set image.tag=0.1.0 --set config.whisperModel=small
+
+# 3. Gateway, pointed at the inference service
+helm upgrade --install asr deploy/helm/asr-gateway -n asr \
+  --set image.tag=0.1.0 \
+  --set config.inferenceAddr=asr-inference.asr.svc.cluster.local:50051
+```
+
+The gateway chart lives in [`deploy/helm/asr-gateway`](deploy/helm/asr-gateway). Build and push
 the image (see [`Dockerfile`](Dockerfile) — distroless, non-root), then install:
 
 ```bash

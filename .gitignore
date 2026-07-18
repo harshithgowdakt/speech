@@ -21,5 +21,9 @@ sdks/js/package-lock.json
 *.egg-info/
 .venv/
 
+# Generated Python gRPC stubs (regenerated via gen_proto.sh / Dockerfile)
+inference-server/asr_pb2.py
+inference-server/asr_pb2_grpc.py
+
 # Spec-Kit / agent — may hold credentials (see specify init security note)
 .claude/settings.local.json

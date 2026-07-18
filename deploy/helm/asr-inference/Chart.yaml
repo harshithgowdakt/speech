@@ -1,0 +1,17 @@
+apiVersion: v2
+name: asr-inference
+description: faster-whisper ASR inference server (asr.v1 gRPC) for GPU nodes on AWS EKS.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - asr
+  - whisper
+  - speech-to-text
+  - grpc
+  - gpu
+home: https://github.com/harshithgowdakt/speech
+sources:
+  - https://github.com/harshithgowdakt/speech
+maintainers:
+  - name: harshithgowdakt

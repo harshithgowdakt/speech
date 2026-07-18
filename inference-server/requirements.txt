@@ -1,0 +1,8 @@
+# Pin ctranslate2 to a build compatible with the CUDA/cuDNN in the Docker image.
+# The Dockerfile uses CUDA 12.2 + cuDNN 8; ctranslate2 4.3.x targets cuDNN 8.
+# If you change the base image's cuDNN, change this pin to match (4.4+ = cuDNN 9).
+faster-whisper==1.0.3
+ctranslate2==4.3.1
+grpcio==1.68.1
+grpcio-health-checking==1.68.1
+numpy>=1.24,<2.0

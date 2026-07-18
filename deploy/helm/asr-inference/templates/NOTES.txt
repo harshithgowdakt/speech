@@ -1,0 +1,19 @@
+{{ include "asr-inference.fullname" . }} (faster-whisper) deployed.
+
+Model:  {{ .Values.config.whisperModel }}  Device: {{ .Values.config.whisperDevice }}  Compute: {{ .Values.config.whisperCompute }}
+Image:  {{ include "asr-inference.image" . }}
+{{- if .Values.gpu.enabled }}
+GPU:    {{ .Values.gpu.count }} per pod (needs the NVIDIA device plugin on GPU nodes)
+{{- end }}
+
+Point the gateway at this service:
+
+  --set config.inferenceAddr={{ include "asr-inference.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}
+
+Check it's serving (gRPC health):
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "asr-inference.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  grpcurl -plaintext localhost:{{ .Values.service.port }} grpc.health.v1.Health/Check
+
+First start downloads the model (unless baked into the image); the startupProbe
+allows up to ~{{ mul .Values.startupProbe.periodSeconds .Values.startupProbe.failureThreshold }}s for that.

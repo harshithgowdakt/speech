@@ -1,0 +1,112 @@
+# Default values for asr-inference (faster-whisper on GPU).
+
+# GPU inference is expensive; scale deliberately. Autoscaling is off by default.
+replicaCount: 1
+
+image:
+  repository: ghcr.io/harshithgowdakt/asr-inference
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# --- Model / server configuration (env vars) ---
+config:
+  whisperModel: "base"      # tiny|base|small|medium|large-v3 (or *.en variants)
+  whisperDevice: "cuda"     # cuda | cpu
+  whisperCompute: "float16" # float16 (GPU) | int8_float16 | int8 (CPU)
+  whisperBeam: "1"          # 1 = greedy (lowest latency)
+  whisperVad: "true"        # drop non-speech with Silero VAD
+  interimIntervalSec: "1.0" # re-transcribe cadence for interim results
+  maxWorkers: "16"          # concurrent streams (gRPC thread pool)
+  port: "50051"
+
+extraEnv: []
+
+service:
+  type: ClusterIP
+  port: 50051
+  annotations: {}
+
+# --- GPU scheduling (AWS EKS) ---
+# GPUs are requested via limits only. Requires the NVIDIA device plugin (or GPU
+# Operator) on the GPU node group (g4dn/g5). One GPU per pod by default.
+gpu:
+  enabled: true
+  count: 1
+
+resources:
+  requests:
+    cpu: "2"
+    memory: 4Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+    # nvidia.com/gpu is injected from gpu.count when gpu.enabled.
+
+# Schedule onto GPU nodes and tolerate the NVIDIA taint. Adjust the selector to
+# your node group's labels (examples for EKS managed node groups / Karpenter).
+nodeSelector: {}
+  # eks.amazonaws.com/nodegroup: gpu
+  # karpenter.sh/nodepool: gpu
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+affinity: {}
+
+# Hugging Face cache for downloaded model weights. Baking the model into the
+# image (Dockerfile PREFETCH_MODEL) is recommended for fast cold starts; this
+# emptyDir just avoids re-download within a pod's lifetime.
+modelCache:
+  enabled: true
+  medium: ""       # "" (disk) or "Memory"
+  sizeLimit: 10Gi
+  mountPath: /models
+
+# gRPC health probes (K8s native gRPC probes; EKS 1.27+).
+startupProbe:
+  grpc:
+    port: 50051
+  periodSeconds: 10
+  failureThreshold: 60   # allow up to ~10 min for large model downloads/loads
+livenessProbe:
+  grpc:
+    port: 50051
+  periodSeconds: 20
+  failureThreshold: 3
+readinessProbe:
+  grpc:
+    port: 50051
+  periodSeconds: 10
+  failureThreshold: 3
+
+# Give in-flight transcriptions time to finish on shutdown.
+terminationGracePeriodSeconds: 30
+
+podSecurityContext:
+  runAsNonRoot: false   # CUDA base image runs as root; tighten if your image allows
+securityContext: {}
+
+autoscaling:
+  # GPU autoscaling is usually driven by Karpenter provisioning GPU nodes plus a
+  # custom/GPU-utilization metric. This optional HPA is a simple starting point.
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetGPUUtilization: 0    # 0 = disabled (requires DCGM metrics + adapter)
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+podAnnotations: {}
+podLabels: {}
