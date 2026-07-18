@@ -7,8 +7,8 @@ import (
 	"net"
 	"os"
 
-	pb "github.com/harshithgowda/asr/internal/genproto/asr"
-	"github.com/harshithgowda/asr/internal/inference/mock"
+	pb "github.com/harshithgowdakt/speech/internal/genproto/asr"
+	"github.com/harshithgowdakt/speech/internal/inference/mock"
 	"google.golang.org/grpc"
 )
 

@@ -9,7 +9,7 @@ import (
 	"net"
 	"strings"
 
-	pb "github.com/harshithgowda/asr/internal/genproto/asr"
+	pb "github.com/harshithgowdakt/speech/internal/genproto/asr"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"

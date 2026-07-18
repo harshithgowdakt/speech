@@ -1,0 +1,40 @@
+{{ include "asr-gateway.fullname" . }} has been deployed.
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Image:     {{ include "asr-gateway.image" . }}
+
+The gateway connects to the ASR inference server at:
+  {{ .Values.config.inferenceAddr }}
+Make sure that gRPC service is reachable from this namespace.
+
+WebSocket endpoint (subprotocol "asr.v1"): /v1/stream
+Metrics:  /metrics    Health: /healthz
+
+{{- if .Values.ingress.enabled }}
+
+Reachable via Ingress:
+{{- range .Values.ingress.hosts }}
+  {{- range .paths }}
+  ws{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else }}
+
+No Ingress is enabled. Port-forward to test locally:
+
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "asr-gateway.fullname" . }} 8080:{{ .Values.service.port }}
+
+Then check health:
+
+  curl http://localhost:8080/healthz
+{{- end }}
+
+{{- if .Values.autoscaling.enabled }}
+
+Autoscaling is ON: {{ .Values.autoscaling.minReplicas }}–{{ .Values.autoscaling.maxReplicas }} replicas (target CPU {{ .Values.autoscaling.targetCPUUtilizationPercentage }}%).
+{{- else }}
+
+Running {{ .Values.replicaCount }} replica(s). Note: WebSocket sessions are sticky to a
+pod for their lifetime; scale-down drains over terminationGracePeriodSeconds={{ .Values.terminationGracePeriodSeconds }}s.
+{{- end }}

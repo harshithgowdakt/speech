@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/harshithgowda/asr/internal/inference"
-	"github.com/harshithgowda/asr/internal/inference/mock"
-	"github.com/harshithgowda/asr/internal/session"
-	"github.com/harshithgowda/asr/internal/transport"
+	"github.com/harshithgowdakt/speech/internal/inference"
+	"github.com/harshithgowdakt/speech/internal/inference/mock"
+	"github.com/harshithgowdakt/speech/internal/session"
+	"github.com/harshithgowdakt/speech/internal/transport"
 )
 
 type transcriptMsg struct {

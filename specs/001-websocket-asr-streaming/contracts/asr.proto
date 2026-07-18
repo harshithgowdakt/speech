@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package asr.v1;
 
-option go_package = "github.com/harshithgowda/asr/internal/genproto/asr;asrv1";
+option go_package = "github.com/harshithgowdakt/speech/internal/genproto/asr;asrv1";
 
 // ASRService is the inference contract between the gateway and the ASR
 // inference server. It is the SINGLE SOURCE OF TRUTH for the inference API

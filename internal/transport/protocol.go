@@ -11,7 +11,7 @@ import (
 	"io"
 
 	"github.com/coder/websocket"
-	"github.com/harshithgowda/asr/internal/session"
+	"github.com/harshithgowdakt/speech/internal/session"
 )
 
 // --- Wire message shapes (JSON text frames) ---

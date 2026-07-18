@@ -13,11 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/harshithgowda/asr/internal/config"
-	"github.com/harshithgowda/asr/internal/inference"
-	"github.com/harshithgowda/asr/internal/metrics"
-	"github.com/harshithgowda/asr/internal/session"
-	"github.com/harshithgowda/asr/internal/transport"
+	"github.com/harshithgowdakt/speech/internal/config"
+	"github.com/harshithgowdakt/speech/internal/inference"
+	"github.com/harshithgowdakt/speech/internal/metrics"
+	"github.com/harshithgowdakt/speech/internal/session"
+	"github.com/harshithgowdakt/speech/internal/transport"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 

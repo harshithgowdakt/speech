@@ -1,0 +1,10 @@
+.git
+.gitignore
+.claude
+.specify
+specs
+deploy
+test/tools
+*.md
+bin
+*.out

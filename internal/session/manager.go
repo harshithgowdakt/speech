@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/harshithgowda/asr/internal/metrics"
+	"github.com/harshithgowdakt/speech/internal/metrics"
 )
 
 // Manager owns the registry of active sessions. The registry map is the only

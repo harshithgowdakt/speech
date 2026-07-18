@@ -6,8 +6,8 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
-	"github.com/harshithgowda/asr/internal/metrics"
-	"github.com/harshithgowda/asr/internal/session"
+	"github.com/harshithgowdakt/speech/internal/metrics"
+	"github.com/harshithgowdakt/speech/internal/session"
 )
 
 // Options configures the WebSocket transport.

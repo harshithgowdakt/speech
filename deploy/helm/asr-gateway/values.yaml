@@ -1,0 +1,133 @@
+# Default values for asr-gateway.
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/harshithgowdakt/asr-gateway
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# --- Gateway configuration (maps to the ASR_* env vars) ---
+config:
+  listenAddr: ":8080"
+  # gRPC address of the ASR inference server. Point this at your model service.
+  inferenceAddr: "asr-inference:50051"
+  sessionTimeout: "30s"
+  writeTimeout: "5s"
+  maxFrameBytes: "65536"
+  audioBuffer: "32"
+  transcriptBuffer: "32"
+
+# Extra environment variables (list of {name,value} or valueFrom entries).
+extraEnv: []
+# Extra env sourced from ConfigMaps/Secrets.
+envFrom: []
+
+# The container port the gateway listens on (must match config.listenAddr port).
+containerPort: 8080
+
+service:
+  type: ClusterIP
+  port: 80
+  annotations: {}
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 512Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  # targetMemoryUtilizationPercentage: 80
+
+# WebSocket sessions are long-lived; give in-flight streams time to drain on
+# rollout/scale-down. Should exceed the gateway's own 10s shutdown budget.
+terminationGracePeriodSeconds: 60
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+# Pod- and container-level security contexts (distroless nonroot image = uid 65532).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+ingress:
+  enabled: false
+  className: "nginx"
+  # Annotations below configure NGINX for long-lived WebSocket connections.
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: asr.example.com
+      paths:
+        - path: /v1/stream
+          pathType: Prefix
+  tls: []
+  #  - secretName: asr-tls
+  #    hosts:
+  #      - asr.example.com
+
+metrics:
+  # Prometheus Operator ServiceMonitor for scraping /metrics.
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+
+podAnnotations: {}
+podLabels: {}
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []

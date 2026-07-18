@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/harshithgowda/asr/internal/inference"
-	"github.com/harshithgowda/asr/internal/inference/mock"
-	"github.com/harshithgowda/asr/internal/session"
+	"github.com/harshithgowdakt/speech/internal/inference"
+	"github.com/harshithgowdakt/speech/internal/inference/mock"
+	"github.com/harshithgowdakt/speech/internal/session"
 )
 
 // T014: contract test for the gRPC client — config-then-audio ordering and

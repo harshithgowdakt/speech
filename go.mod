@@ -1,4 +1,4 @@
-module github.com/harshithgowda/asr
+module github.com/harshithgowdakt/speech
 
 go 1.25.0
 

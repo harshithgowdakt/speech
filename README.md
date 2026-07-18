@@ -57,6 +57,36 @@ go run ./test/tools/wsclient -file /tmp/hello.txt
 #    [FINAL] hello world
 ```
 
+## Deploy to Kubernetes (Helm)
+
+A chart lives in [`deploy/helm/asr-gateway`](deploy/helm/asr-gateway). Build and push
+the image (see [`Dockerfile`](Dockerfile) — distroless, non-root), then install:
+
+```bash
+docker build -t ghcr.io/harshithgowdakt/asr-gateway:0.1.0 .
+docker push  ghcr.io/harshithgowdakt/asr-gateway:0.1.0
+
+helm upgrade --install asr deploy/helm/asr-gateway \
+  --namespace asr --create-namespace \
+  --set image.tag=0.1.0 \
+  --set config.inferenceAddr=my-asr-model:50051
+```
+
+The chart ships: Deployment, Service, ServiceAccount, and opt-in HPA, Ingress
+(NGINX WebSocket timeouts preconfigured), ServiceMonitor (Prometheus Operator),
+and PodDisruptionBudget. Long-lived WebSocket sessions drain on rollout via
+`terminationGracePeriodSeconds` (default 60s). Enable extras as needed:
+
+```bash
+helm upgrade --install asr deploy/helm/asr-gateway \
+  --set autoscaling.enabled=true \
+  --set ingress.enabled=true --set ingress.hosts[0].host=asr.example.com \
+  --set metrics.serviceMonitor.enabled=true \
+  --set podDisruptionBudget.enabled=true
+```
+
+Run chart tests after install: `helm test asr -n asr`.
+
 ## Configuration
 
 | Env var | Default | Meaning |

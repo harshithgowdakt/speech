@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/harshithgowda/asr/internal/session"
+	"github.com/harshithgowdakt/speech/internal/session"
 )
 
 // serve starts an httptest server whose handler hands each accepted connection

@@ -1,4 +1,4 @@
-MODULE := github.com/harshithgowda/asr
+MODULE := github.com/harshithgowdakt/speech
 GOBIN  := $(shell go env GOPATH)/bin
 
 .PHONY: generate build test test-integration lint run tidy

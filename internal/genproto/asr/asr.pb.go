@@ -442,7 +442,7 @@ const file_asr_proto_rawDesc = "" +
 	"\x14AUDIO_ENCODING_MULAW\x10\x042m\n" +
 	"\n" +
 	"ASRService\x12_\n" +
-	"\x12StreamingRecognize\x12!.asr.v1.StreamingRecognizeRequest\x1a\".asr.v1.StreamingRecognizeResponse(\x010\x01B:Z8github.com/harshithgowda/asr/internal/genproto/asr;asrv1b\x06proto3"
+	"\x12StreamingRecognize\x12!.asr.v1.StreamingRecognizeRequest\x1a\".asr.v1.StreamingRecognizeResponse(\x010\x01B?Z=github.com/harshithgowdakt/speech/internal/genproto/asr;asrv1b\x06proto3"
 
 var (
 	file_asr_proto_rawDescOnce sync.Once

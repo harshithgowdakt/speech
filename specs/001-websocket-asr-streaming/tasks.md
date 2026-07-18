@@ -33,7 +33,7 @@ in `*_test.go` plus `test/integration/`. Contracts mirrored from
 
 **Purpose**: Project initialization and toolchain
 
-- [x] T001 Initialize Go module `github.com/harshithgowda/asr` (`go mod init`) and create the directory tree from plan.md (`cmd/gateway`, `internal/{config,transport,inference,inference/mock,session,metrics,genproto}`, `test/integration`, `proto`)
+- [x] T001 Initialize Go module `github.com/harshithgowdakt/speech` (`go mod init`) and create the directory tree from plan.md (`cmd/gateway`, `internal/{config,transport,inference,inference/mock,session,metrics,genproto}`, `test/integration`, `proto`)
 - [x] T002 Add dependencies to go.mod: `github.com/coder/websocket`, `google.golang.org/grpc`, `google.golang.org/protobuf`, `github.com/prometheus/client_golang`, `golang.org/x/sync/errgroup`, `github.com/google/uuid`, `github.com/stretchr/testify`
 - [x] T003 [P] Copy `contracts/asr.proto` to `proto/asr.proto` and add `buf.yaml` + `buf.gen.yaml` configuring `protoc-gen-go` and `protoc-gen-go-grpc` output to `internal/genproto/asr`
 - [x] T004 [P] Add a `Makefile` with targets `generate` (buf generate), `build`, `test`, `test-integration`, `lint` (go vet + buf lint), `run`

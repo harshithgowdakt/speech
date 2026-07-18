@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/harshithgowda/asr/internal/metrics"
+	"github.com/harshithgowdakt/speech/internal/metrics"
 	"golang.org/x/sync/errgroup"
 )
 

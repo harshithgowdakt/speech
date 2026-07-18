@@ -6,9 +6,9 @@ import (
 	"context"
 	"fmt"
 
-	pb "github.com/harshithgowda/asr/internal/genproto/asr"
-	"github.com/harshithgowda/asr/internal/metrics"
-	"github.com/harshithgowda/asr/internal/session"
+	pb "github.com/harshithgowdakt/speech/internal/genproto/asr"
+	"github.com/harshithgowdakt/speech/internal/metrics"
+	"github.com/harshithgowdakt/speech/internal/session"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
