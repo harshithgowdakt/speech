@@ -1,0 +1,23 @@
+{
+  "name": "@asr/client",
+  "version": "0.1.0",
+  "description": "TypeScript/JS client SDK for the ASR streaming gateway (asr.v1)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": ["asr", "speech-to-text", "websocket", "streaming"],
+  "license": "MIT",
+  "optionalDependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.5.12",
+    "typescript": "^5.6.0"
+  }
+}

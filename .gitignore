@@ -13,5 +13,13 @@ coverage.txt
 .idea/
 *.swp
 
+# SDK build artifacts
+sdks/js/node_modules/
+sdks/js/dist/
+sdks/js/package-lock.json
+**/__pycache__/
+*.egg-info/
+.venv/
+
 # Spec-Kit / agent — may hold credentials (see specify init security note)
 .claude/settings.local.json
