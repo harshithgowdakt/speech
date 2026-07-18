@@ -1,0 +1,22 @@
+apiVersion: v2
+name: keda
+description: Full KEDA event-driven autoscaler deployment (operator, metrics API server, admission webhooks, CRDs) with production HA defaults. Deploy standalone and cluster-wide; the asr-gateway chart's ScaledObject depends on this being present.
+type: application
+# Wrapper chart version — bump on changes to this wrapper.
+version: 0.1.0
+# Version of KEDA deployed.
+appVersion: "2.20.1"
+home: https://keda.sh
+sources:
+  - https://github.com/kedacore/keda
+  - https://github.com/kedacore/charts
+keywords:
+  - keda
+  - autoscaling
+  - event-driven
+maintainers:
+  - name: harshithgowdakt
+dependencies:
+  - name: keda
+    version: "2.20.1"
+    repository: https://kedacore.github.io/charts

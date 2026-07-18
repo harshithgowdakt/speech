@@ -96,6 +96,9 @@ autoscaling:
             periodSeconds: 30
         selectPolicy: Max
 
+  # NOTE: KEDA scaling requires the KEDA operator in the cluster. Deploy it
+  # separately with the standalone chart in deploy/helm/keda.
+
   # --- Native HPA (mode: hpa) ---
   targetCPUUtilizationPercentage: 60
   # targetMemoryUtilizationPercentage: 80

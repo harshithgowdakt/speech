@@ -1,0 +1,75 @@
+# Production values for the KEDA deployment.
+#
+# All settings are passed through to the upstream kedacore/keda chart under the
+# "keda:" key (the dependency name). Full reference:
+#   https://github.com/kedacore/charts/tree/main/keda
+keda:
+  # Install/upgrade the CRDs with the chart.
+  crds:
+    install: true
+
+  # --- High availability ---
+  # Operator uses leader election: extra replicas don't add throughput but cut
+  # failover downtime during node loss / rollouts.
+  operator:
+    replicaCount: 2
+  # The metrics API server is on the hot path for every HPA query — run 2+.
+  metricsServer:
+    replicaCount: 2
+  # Admission webhooks validate ScaledObjects; 2 replicas avoid a single point
+  # of failure that could block ScaledObject changes.
+  webhooks:
+    replicaCount: 2
+
+  # --- Disruption budgets: keep at least one of each component during drains ---
+  podDisruptionBudget:
+    operator:
+      minAvailable: 1
+    metricServer:
+      minAvailable: 1
+    webhooks:
+      minAvailable: 1
+
+  # --- Spread replicas across nodes ---
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                    - keda-operator
+                    - keda-operator-metrics-apiserver
+                    - keda-admission-webhooks
+
+  # --- Resources (upstream defaults shown; tune per cluster) ---
+  resources:
+    operator:
+      requests: { cpu: 100m, memory: 100Mi }
+      limits: { cpu: "1", memory: 1000Mi }
+    metricServer:
+      requests: { cpu: 100m, memory: 100Mi }
+      limits: { cpu: "1", memory: 1000Mi }
+    webhooks:
+      requests: { cpu: 100m, memory: 100Mi }
+      limits: { cpu: "1", memory: 1000Mi }
+
+  # Recommended for a cluster-critical autoscaler (uncomment if the PriorityClass
+  # exists in your cluster):
+  # priorityClassName: system-cluster-critical
+
+  # Expose KEDA's own Prometheus metrics (operator + metrics server). Enable if
+  # you run the Prometheus Operator and want ServiceMonitors created.
+  prometheus:
+    operator:
+      enabled: false
+      serviceMonitor:
+        enabled: false
+    metricServer:
+      enabled: false
+      serviceMonitor:
+        enabled: false
