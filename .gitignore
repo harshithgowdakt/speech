@@ -1,0 +1,17 @@
+# Binaries
+/bin/
+*.exe
+*.test
+*.out
+
+# Go
+vendor/
+coverage.txt
+
+# Editor / OS
+.DS_Store
+.idea/
+*.swp
+
+# Spec-Kit / agent — may hold credentials (see specify init security note)
+.claude/settings.local.json

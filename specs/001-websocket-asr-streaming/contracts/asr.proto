@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package asr.v1;
+
+option go_package = "github.com/harshithgowda/asr/internal/genproto/asr;asrv1";
+
+// ASRService is the inference contract between the gateway and the ASR
+// inference server. It is the SINGLE SOURCE OF TRUTH for the inference API
+// (Constitution Principle II). Generated Go lives in internal/genproto/asr.
+service ASRService {
+  // StreamingRecognize is a bidirectional stream. The client (the gateway)
+  // MUST send a RecognitionConfig as the first message, then a sequence of
+  // audio chunks. The server streams back interim and final transcripts as
+  // they are produced (Principle I: no full-utterance buffering).
+  rpc StreamingRecognize(stream StreamingRecognizeRequest)
+      returns (stream StreamingRecognizeResponse);
+}
+
+// AudioEncoding enumerates the accepted raw audio encodings.
+enum AudioEncoding {
+  AUDIO_ENCODING_UNSPECIFIED = 0;
+  AUDIO_ENCODING_LINEAR16 = 1; // 16-bit signed little-endian PCM
+  AUDIO_ENCODING_FLAC = 2;
+  AUDIO_ENCODING_OGG_OPUS = 3;
+  AUDIO_ENCODING_MULAW = 4;
+}
+
+// RecognitionConfig is sent once, before any audio, to configure the recognizer.
+message RecognitionConfig {
+  AudioEncoding encoding = 1;
+  int32 sample_rate_hz = 2;   // e.g. 16000
+  string language_code = 3;   // BCP-47, e.g. "en-US"
+  bool interim_results = 4;   // request interim transcripts (default true)
+}
+
+// StreamingRecognizeRequest is a oneof: the first message MUST be `config`,
+// every subsequent message MUST be `audio_content`.
+message StreamingRecognizeRequest {
+  oneof streaming_request {
+    RecognitionConfig config = 1;
+    bytes audio_content = 2; // raw audio bytes in the configured encoding
+  }
+}
+
+// StreamingRecognizeResponse carries a transcript result or a stream-level error.
+message StreamingRecognizeResponse {
+  repeated StreamingResult results = 1;
+  StreamError error = 2; // set when the server aborts the stream
+}
+
+// StreamingResult is one recognition hypothesis.
+message StreamingResult {
+  string transcript = 1;
+  bool is_final = 2;      // final (true) vs. interim (false) — FR-005
+  float confidence = 3;   // 0..1, optional (final results)
+  float stability = 4;    // 0..1, optional (interim results)
+}
+
+// StreamError is a structured, server-originated stream failure.
+message StreamError {
+  string code = 1;    // e.g. "invalid_config", "internal", "unsupported_format"
+  string message = 2;
+}
